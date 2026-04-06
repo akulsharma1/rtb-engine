@@ -1,0 +1,32 @@
+{
+  "name": "rtb-engine",
+  "dockerComposeFile": [
+    "../compose.yaml",
+    "compose.devcontainer.yaml"
+  ],
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "builder",
+  "updateRemoteUserUID": true,
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "vadimcn.vscode-lldb",
+        "ms-vscode.cpptools"
+      ],
+      "settings": {
+        "cmake.configureOnOpen": true,
+        "cmake.buildDirectory": "/workspace/build",
+        "cmake.generator": "Ninja",
+        "clangd.arguments": [
+          "--compile-commands-dir=/workspace/build"
+        ],
+        "C_Cpp.intelliSenseEngine": "disabled"
+      }
+    }
+  },
+  "postCreateCommand": "cmake -S . -B build -G Ninja"
+}
