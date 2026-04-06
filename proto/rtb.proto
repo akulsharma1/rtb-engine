@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package rtb.v1;
+
+enum AuctionType {
+  AUCTION_TYPE_UNSPECIFIED = 0;
+  AUCTION_TYPE_FIRST_PRICE = 1;
+  AUCTION_TYPE_SECOND_PRICE = 2;
+}
+
+enum BidStatus {
+  BID_STATUS_UNSPECIFIED = 0;
+  BID_STATUS_NO_BID = 1;
+  BID_STATUS_BID = 2;
+}
+
+message BidRequest {
+  string request_id = 1;
+  uint32 tmax_ms = 2;
+  string country = 3;
+  string device_type = 4;
+  string ad_slot = 5;
+  AuctionType auction_type = 6;
+}
+
+message BidResponse {
+  string request_id = 1;
+  BidStatus status = 2;
+  string campaign_id = 3;
+  string creative_id = 4;
+  double price = 5;
+}
