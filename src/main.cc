@@ -15,6 +15,7 @@ int main() {
         .auction_type = rtb::engine::AuctionType::kFirstPrice,
     };
 
+
     rtb::engine::RequestContext request_context {
         .request_id = parsed_message.request_id,
         .country_key = {1},

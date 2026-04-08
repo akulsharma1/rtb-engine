@@ -7,3 +7,13 @@ target_link_libraries(
 )
 
 add_test(NAME engine_types_smoke_test COMMAND engine_types_smoke_test)
+
+add_executable(parse_test parse_test.cc)
+
+target_link_libraries(
+    parse_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME parse_test COMMAND parse_test)
