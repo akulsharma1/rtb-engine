@@ -17,3 +17,13 @@ target_link_libraries(
 )
 
 add_test(NAME parse_test COMMAND parse_test)
+
+add_executable(frame_test frame_test.cc)
+
+target_link_libraries(
+    frame_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME frame_test COMMAND frame_test)

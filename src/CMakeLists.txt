@@ -13,7 +13,9 @@ target_link_libraries(
 )
 
 add_library(rtb_engine_core STATIC
+    frame.cc
     parse.cc
+    worker_runtime.cc
 )
 
 target_link_libraries(
