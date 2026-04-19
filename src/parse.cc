@@ -26,7 +26,10 @@ ParseStatus parse_bid_request(
     ParsedMessage& out
 ) {
     out = {};
-    scratch.request.Clear();
+
+    // .Clear() is commented out beccause ParseFromArray should overwrite all values anyways
+    // Only reason we may need .Clear() is if old messages may be partial so there's stale data in a request
+    // scratch.request.Clear();
 
     if (frame.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         return ParseStatus::kMalformedProto;
@@ -61,7 +64,7 @@ ParseStatus parse_bid_request(
     out.ad_slot = scratch.request.ad_slot();
     out.auction_type = auction_type;
     out.processing_status = RequestProcessingStatus::kOk;
-    out.no_bid_reason = NoBidReason::kNone;
+    // out.no_bid_reason = NoBidReason::kNone;
 
     return ParseStatus::kOk;
 }

@@ -54,7 +54,7 @@ struct ParsedMessage {
     std::string_view ad_slot;
     AuctionType auction_type = AuctionType::kUnspecified;
     RequestProcessingStatus processing_status = RequestProcessingStatus::kOk;
-    NoBidReason no_bid_reason = NoBidReason::kNone;
+    // NoBidReason no_bid_reason = NoBidReason::kNone;
 };
 
 struct RequestContext {
