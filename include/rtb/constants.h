@@ -16,5 +16,9 @@ namespace rtb::constants {
         return device_type == CTV || device_type == CONNECTED_TV;
     }
 
+    // campaign
+    inline constexpr char const kCsvDelimiter = ',';
+    inline constexpr char const kCreativeDelimiter = '|';
+    inline constexpr char const kCreativeFieldDelimiter = ':';
 }
 #endif

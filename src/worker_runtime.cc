@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "logs/logs.h"
+#include "rtb/campaign_store.h"
 #include "rtb/frame.h"
 #include "rtb/handle_request.h"
 #include "rtb/engine_types.h"
@@ -42,6 +43,17 @@ void close_connection(rtb::engine::WorkerRuntime& runtime, int client_fd) {
 namespace rtb::engine {
 
 bool initialize_worker_runtime(WorkerRuntime& runtime) {
+    if (runtime.campaign_store == nullptr) {
+        runtime.campaign_store = load_campaign_store_snapshot(runtime.config.campaign_data_path);
+        if (runtime.campaign_store == nullptr) {
+            rtb::logger::LOG_ERROR(
+                "Failed loading campaign store snapshot from %s",
+                runtime.config.campaign_data_path.c_str()
+            );
+            return false;
+        }
+    }
+
     runtime.listen_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (runtime.listen_fd == -1) {
         return false;
@@ -235,7 +247,7 @@ int run_worker_loop(WorkerRuntime& runtime) {
                             }
 
                             const HandleRequestResult request_result =
-                                handle_request(parsed_message, now_ns());
+                                handle_request(parsed_message, now_ns(), *runtime.campaign_store);
                             if (request_result.status == HandleRequestStatus::kDropConnection) {
                                 should_close = true;
                                 break;

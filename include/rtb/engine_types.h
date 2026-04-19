@@ -92,11 +92,17 @@ struct CreativeRecord {
     bool active = false;
 };
 
+struct CampaignView;
+
 struct CampaignStoreSnapshot {
     std::vector<CampaignRecord> campaigns;
     std::vector<CreativeRecord> creatives;
     std::unordered_map<std::uint16_t, std::vector<std::uint32_t>> campaigns_by_country;
     std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> campaigns_by_ad_slot;
+
+    // wrapper function on another retrieve_candidates function.
+    // we thread function calls for easier future hotswappability. 
+    [[nodiscard]] std::vector<CampaignView> retrieve_candidates(const RequestContext& request_context) const;
 };
 
 struct CampaignView {

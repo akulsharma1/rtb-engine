@@ -3,12 +3,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <unordered_map>
 
+#include "rtb/engine_types.h"
 #include "rtb/parse.h"
 #include "rtb/runtime_types.h"
 
 namespace rtb::engine {
+
+#ifndef RTB_PROJECT_SOURCE_DIR
+#define RTB_PROJECT_SOURCE_DIR "."
+#endif
 
 struct WorkerConfig {
     int worker_id = 0;
@@ -16,6 +23,7 @@ struct WorkerConfig {
     int epoll_max_events = 256;
     std::size_t connection_buffer_capacity = 16 * 1024;
     std::uint32_t max_frame_size = 64 * 1024;
+    std::string campaign_data_path = RTB_PROJECT_SOURCE_DIR "/data/sample_campaigns.csv";
 };
 
 struct WorkerRuntime {
@@ -24,6 +32,7 @@ struct WorkerRuntime {
     int listen_fd = -1;
     std::uint64_t next_connection_id = 1;
     ParseScratch parse_scratch;
+    std::shared_ptr<const CampaignStoreSnapshot> campaign_store;
     std::unordered_map<int, ConnectionState> connections;
 };
 

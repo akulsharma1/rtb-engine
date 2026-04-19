@@ -22,7 +22,8 @@ struct HandleRequestResult {
 
 HandleRequestResult handle_request(
     const ParsedMessage& parsed_message,
-    std::uint64_t received_at_ns
+    std::uint64_t received_at_ns,
+    const CampaignStoreSnapshot& campaign_store
 );
 
 }  // namespace rtb::engine

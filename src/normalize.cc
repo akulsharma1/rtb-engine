@@ -62,7 +62,7 @@ rtb::engine::AdSlotKey normalize_ad_slot(std::string_view ad_slot) {
     return {value};
 }
 
-std::uint64_t compute_deadline_ns(std::uint64_t received_at_ns, std::uint32_t tmax_ms) {
+std::uint64_t compute_deadline_ns_impl(std::uint64_t received_at_ns, std::uint32_t tmax_ms) {
     const std::uint64_t raw_budget_ns = static_cast<std::uint64_t>(tmax_ms) * rtb::config::kNsPerMs;
     if (raw_budget_ns <= rtb::config::kResponseSafetyMarginNs) {
         return received_at_ns;
@@ -74,12 +74,28 @@ std::uint64_t compute_deadline_ns(std::uint64_t received_at_ns, std::uint32_t tm
 
 namespace rtb::engine {
 
+CountryKey normalize_country_key(std::string_view country) {
+    return normalize_country(country);
+}
+
+DeviceTypeKey normalize_device_type_key(std::string_view device_type) {
+    return normalize_device_type(device_type);
+}
+
+AdSlotKey normalize_ad_slot_key(std::string_view ad_slot) {
+    return normalize_ad_slot(ad_slot);
+}
+
+std::uint64_t compute_deadline_ns(std::uint64_t received_at_ns, std::uint32_t tmax_ms) {
+    return compute_deadline_ns_impl(received_at_ns, tmax_ms);
+}
+
 RequestContext build_request_context(const ParsedMessage& parsed_message, std::uint64_t received_at_ns) {
     RequestContext context {
         .request_id = parsed_message.request_id,
-        .country_key = normalize_country(parsed_message.country),
-        .device_type_key = normalize_device_type(parsed_message.device_type),
-        .ad_slot_key = normalize_ad_slot(parsed_message.ad_slot),
+        .country_key = normalize_country_key(parsed_message.country),
+        .device_type_key = normalize_device_type_key(parsed_message.device_type),
+        .ad_slot_key = normalize_ad_slot_key(parsed_message.ad_slot),
         .auction_type = parsed_message.auction_type,
         .received_at_ns = received_at_ns,
         .deadline_ns = compute_deadline_ns(received_at_ns, parsed_message.tmax_ms),

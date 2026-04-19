@@ -57,3 +57,23 @@ target_link_libraries(
 )
 
 add_test(NAME handle_request_test COMMAND handle_request_test)
+
+add_executable(campaign_store_test campaign_store_test.cc)
+
+target_link_libraries(
+    campaign_store_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME campaign_store_test COMMAND campaign_store_test)
+
+add_executable(retrieve_test retrieve_test.cc)
+
+target_link_libraries(
+    retrieve_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME retrieve_test COMMAND retrieve_test)

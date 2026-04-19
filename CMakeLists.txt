@@ -23,6 +23,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     )
 endif()
 
+add_compile_definitions(RTB_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
 add_subdirectory(proto)
 add_subdirectory(src)
 
