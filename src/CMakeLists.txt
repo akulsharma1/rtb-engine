@@ -14,7 +14,10 @@ target_link_libraries(
 
 add_library(rtb_engine_core STATIC
     frame.cc
+    handle_request.cc
+    normalize.cc
     parse.cc
+    response_builder.cc
     worker_runtime.cc
 )
 

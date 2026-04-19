@@ -1,6 +1,7 @@
 #include "rtb/worker_runtime.h"
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -11,11 +12,20 @@
 
 #include "logs/logs.h"
 #include "rtb/frame.h"
+#include "rtb/handle_request.h"
 #include "rtb/engine_types.h"
 #include "rtb/parse.h"
 #include "rtb/runtime_types.h"
 
 namespace {
+
+std::uint64_t now_ns() {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        ).count()
+    );
+}
 
 void close_connection(rtb::engine::WorkerRuntime& runtime, int client_fd) {
     if (client_fd < 0) {
@@ -220,6 +230,13 @@ int run_worker_loop(WorkerRuntime& runtime) {
                                 logger::LOG_ERROR("parse_bid_request failed for fd %d with status %d",
                                                   client_fd,
                                                   static_cast<int>(parse_status));
+                                should_close = true;
+                                break;
+                            }
+
+                            const HandleRequestResult request_result =
+                                handle_request(parsed_message, now_ns());
+                            if (request_result.status == HandleRequestStatus::kDropConnection) {
                                 should_close = true;
                                 break;
                             }
