@@ -58,6 +58,16 @@ target_link_libraries(
 
 add_test(NAME handle_request_test COMMAND handle_request_test)
 
+add_executable(decision_test decision_test.cc)
+
+target_link_libraries(
+    decision_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME decision_test COMMAND decision_test)
+
 add_executable(campaign_store_test campaign_store_test.cc)
 
 target_link_libraries(

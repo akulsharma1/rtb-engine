@@ -32,6 +32,7 @@ struct WorkerRuntime {
     int listen_fd = -1;
     std::uint64_t next_connection_id = 1;
     ParseScratch parse_scratch;
+    WorkerRng rng;
     std::shared_ptr<const CampaignStoreSnapshot> campaign_store;
     std::unordered_map<int, ConnectionState> connections;
 };

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "rtb/engine_types.h"
+#include "rtb/runtime_types.h"
 #include "rtb.pb.h"
 
 namespace rtb::engine {
@@ -23,7 +24,8 @@ struct HandleRequestResult {
 HandleRequestResult handle_request(
     const ParsedMessage& parsed_message,
     std::uint64_t received_at_ns,
-    const CampaignStoreSnapshot& campaign_store
+    const CampaignStoreSnapshot& campaign_store,
+    WorkerRng& rng
 );
 
 }  // namespace rtb::engine

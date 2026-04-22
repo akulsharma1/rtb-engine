@@ -12,6 +12,7 @@
 
 #include "logs/logs.h"
 #include "rtb/campaign_store.h"
+#include "rtb/config.h"
 #include "rtb/frame.h"
 #include "rtb/handle_request.h"
 #include "rtb/engine_types.h"
@@ -43,6 +44,12 @@ void close_connection(rtb::engine::WorkerRuntime& runtime, int client_fd) {
 namespace rtb::engine {
 
 bool initialize_worker_runtime(WorkerRuntime& runtime) {
+    runtime.rng.seed(
+        static_cast<std::uint64_t>(runtime.config.worker_id + 1) ^
+        now_ns() ^
+        rtb::config::kDefaultRngSeed
+    );
+
     if (runtime.campaign_store == nullptr) {
         runtime.campaign_store = load_campaign_store_snapshot(runtime.config.campaign_data_path);
         if (runtime.campaign_store == nullptr) {
@@ -247,7 +254,7 @@ int run_worker_loop(WorkerRuntime& runtime) {
                             }
 
                             const HandleRequestResult request_result =
-                                handle_request(parsed_message, now_ns(), *runtime.campaign_store);
+                                handle_request(parsed_message, now_ns(), *runtime.campaign_store, runtime.rng);
                             if (request_result.status == HandleRequestStatus::kDropConnection) {
                                 should_close = true;
                                 break;

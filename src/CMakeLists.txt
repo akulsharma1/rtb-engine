@@ -14,6 +14,7 @@ target_link_libraries(
 
 add_library(rtb_engine_core STATIC
     campaign_store.cc
+    decision.cc
     frame.cc
     handle_request.cc
     normalize.cc

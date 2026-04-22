@@ -50,6 +50,38 @@ struct ReusableBuffer {
     void compact();
 };
 
+/*
+WorkerRng is a way to generate random numbers with semi-determinism.
+When we give a seed, it will always generate the same values in order.
+It also doesn't use a syscall for true randomness.
+*/
+struct WorkerRng {
+    std::uint64_t state = 1;
+
+    void seed(std::uint64_t seed_value) noexcept {
+        state = seed_value == 0 ? 1 : seed_value;
+    }
+
+    [[nodiscard]] std::uint64_t next_u64() noexcept {
+        std::uint64_t value = state;
+        value ^= value << 13;
+        value ^= value >> 7;
+        value ^= value << 17;
+        state = value == 0 ? 1 : value;
+        return state;
+    }
+
+    [[nodiscard]] double next_unit_double() noexcept {
+        constexpr double kScale = 1.0 / static_cast<double>(1ULL << 53);
+        return static_cast<double>(next_u64() >> 11) * kScale;
+    }
+
+    // Generates a random index between 0 and the upper bound
+    [[nodiscard]] std::size_t uniform_index(std::size_t upper_bound) noexcept {
+        return upper_bound == 0 ? 0 : static_cast<std::size_t>(next_u64() % upper_bound);
+    }
+};
+
 struct ConnectionState {
     int fd = -1;
     std::uint64_t connection_id = 0;
