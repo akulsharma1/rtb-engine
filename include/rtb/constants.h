@@ -19,6 +19,5 @@ namespace rtb::constants {
     // campaign
     inline constexpr char const kCsvDelimiter = ',';
     inline constexpr char const kCreativeDelimiter = '|';
-    inline constexpr char const kCreativeFieldDelimiter = ':';
 }
 #endif

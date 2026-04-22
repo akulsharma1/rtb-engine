@@ -52,7 +52,6 @@ int main() {
     CreativeRecord creative {
         .creative_id = 77,
         .ad_slot_key = context.ad_slot_key,
-        .active = true,
     };
 
     CampaignStoreSnapshot snapshot;

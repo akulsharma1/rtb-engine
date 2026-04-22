@@ -89,7 +89,6 @@ struct CampaignRecord {
 struct CreativeRecord {
     std::uint64_t creative_id = 0;
     AdSlotKey ad_slot_key {};
-    bool active = false;
 };
 
 struct CampaignView;

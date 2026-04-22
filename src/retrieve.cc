@@ -1,7 +1,5 @@
 #include "rtb/retrieve.h"
 
-#include <algorithm>
-
 namespace {
 
 std::span<const rtb::engine::CreativeRecord> campaign_creatives(
@@ -14,22 +12,7 @@ std::span<const rtb::engine::CreativeRecord> campaign_creatives(
     );
 }
 
-bool has_active_creative(
-    const rtb::engine::CampaignStoreSnapshot& campaign_store,
-    const rtb::engine::CampaignRecord& campaign
-) {
-    const auto creatives = campaign_creatives(campaign_store, campaign);
-    return std::any_of(
-        creatives.begin(),
-        creatives.end(),
-        [](const rtb::engine::CreativeRecord& creative) {
-            return creative.active;
-        }
-    );
-}
-
 bool matches_request(
-    const rtb::engine::CampaignStoreSnapshot& campaign_store,
     const rtb::engine::RequestContext& request_context,
     const rtb::engine::CampaignRecord& campaign
 ) {
@@ -40,7 +23,7 @@ bool matches_request(
         return false;
     }
 
-    return has_active_creative(campaign_store, campaign);
+    return true;
 }
 
 const std::vector<std::uint32_t>* choose_seed_bucket(
@@ -97,7 +80,7 @@ std::vector<CampaignView> retrieve_candidates(
         }
 
         const CampaignRecord& campaign = campaign_store.campaigns[campaign_index];
-        if (!matches_request(campaign_store, request_context, campaign)) {
+        if (!matches_request(request_context, campaign)) {
             continue;
         }
 

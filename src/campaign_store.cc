@@ -94,23 +94,14 @@ bool parse_creative_specs(
                                            : value.substr(start, delimiter - start);
 
         if (!token.empty()) {
-            const std::size_t field_delimiter = token.find(rtb::constants::kCreativeFieldDelimiter);
-            const std::string_view creative_id_field =
-                field_delimiter == std::string_view::npos ? token : token.substr(0, field_delimiter);
-            const std::string_view creative_active_field =
-                field_delimiter == std::string_view::npos ? std::string_view {"1"} : token.substr(field_delimiter + 1);
-
             std::uint64_t creative_id = 0;
-            bool creative_active = false;
-            if (!parse_u64(creative_id_field, creative_id) ||
-                !parse_bool_value(creative_active_field, creative_active)) {
+            if (!parse_u64(token, creative_id)) {
                 return false;
             }
 
             creatives_out.push_back(rtb::engine::CreativeRecord {
                 .creative_id = creative_id,
                 .ad_slot_key = ad_slot_key,
-                .active = creative_active,
             });
             ++creative_count_out;
         }

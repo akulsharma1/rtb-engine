@@ -1,7 +1,7 @@
 #include "rtb/handle_request.h"
 
+#include "rtb/decision.h"
 #include "rtb/normalize.h"
-#include "rtb/retrieve.h"
 #include "rtb/response_builder.h"
 
 namespace {
@@ -23,20 +23,6 @@ void validate_request_context(rtb::engine::RequestContext& request_context) {
     }
 }
 
-rtb::engine::BidDecision make_placeholder_decision(
-    const rtb::engine::RequestContext& request_context,
-    const std::vector<rtb::engine::CampaignView>& candidates
-) {
-    rtb::engine::BidDecision decision;
-    decision.has_bid = false;
-    decision.no_bid_reason = request_context.is_eligible()
-                                 ? (candidates.empty()
-                                        ? rtb::engine::NoBidReason::kNoEligibleCampaign
-                                        : rtb::engine::NoBidReason::kFiltered)
-                                 : request_context.no_bid_reason;
-    return decision;
-}
-
 }  // namespace
 
 namespace rtb::engine {
@@ -44,7 +30,8 @@ namespace rtb::engine {
 HandleRequestResult handle_request(
     const ParsedMessage& parsed_message,
     std::uint64_t received_at_ns,
-    const CampaignStoreSnapshot& campaign_store
+    const CampaignStoreSnapshot& campaign_store,
+    WorkerRng& rng
 ) {
     HandleRequestResult result;
     result.context = build_request_context(parsed_message, received_at_ns);
@@ -56,10 +43,18 @@ HandleRequestResult handle_request(
         result.status = HandleRequestStatus::kDropConnection;
     }
 
-    const std::vector<CampaignView> candidates =
-        campaign_store.retrieve_candidates(result.context);
+    if (!result.context.is_eligible()) {
+        result.decision = BidDecision {
+            .has_bid = false,
+            .no_bid_reason = result.context.no_bid_reason,
+        };
+        result.response = build_bid_response(result.context, result.decision);
+        return result;
+    }
 
-    result.decision = make_placeholder_decision(result.context, candidates);
+    const std::vector<CampaignView> candidates = campaign_store.retrieve_candidates(result.context);
+
+    result.decision = make_bid_decision(result.context, candidates, rng);
     result.response = build_bid_response(result.context, result.decision);
     return result;
 }
