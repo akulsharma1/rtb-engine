@@ -22,3 +22,6 @@ rad.json
 TestResults.xml
 
 build/
+.venv
+.venv-ssp
+tools/generated

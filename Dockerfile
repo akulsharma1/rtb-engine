@@ -19,6 +19,10 @@ RUN apt-get update \
         iproute2 \
         ninja-build \
         pkg-config \
+        python3 \
+        python3-pip \
+        python3-protobuf \
+        python3-venv \
         protobuf-compiler \
         libprotobuf-dev \
     && rm -rf /var/lib/apt/lists/*

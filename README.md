@@ -59,7 +59,47 @@ Inside the container, the repo is mounted at `/workspace`:
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build --output-on-failure
-./build/src/rtb_engine
+./build/src/rtb_engine --port 8080 --workers 1
+```
+
+## SSP Simulator
+
+A basic Python SSP simulator is available under `tools/ssp_sim.py`. It connects to the RTB engine over TCP, sends framed protobuf `BidRequest` messages, and prints the returned `BidResponse` details.
+
+Install the Python protobuf runtime:
+
+```bash
+./tools/install_ssp_deps.sh
+```
+
+Generate the Python protobuf module:
+
+```bash
+./tools/gen_ssp_proto.sh
+```
+
+Run the engine in one shell, then run the simulator in another:
+
+```bash
+./build/src/rtb_engine --port 8080 --workers 1
+python3 tools/ssp_sim.py --port 8080 --count 10 --seed 12345
+```
+
+The SSP dependencies install into a repo-local virtualenv at `.venv-ssp`, so they do not touch the container's system Python.
+
+If your current container was created before Python tooling was added and `python3 -m venv` is missing, rebuild/re-enter it from the host:
+
+```bash
+exit
+./start_container.sh
+./tools/install_ssp_deps.sh
+```
+
+Use `Ctrl-C` to stop the server cleanly. The binary also supports:
+
+```bash
+./build/src/rtb_engine --help
+./build/src/rtb_engine --port 9090 --workers 2 --campaign-data-path data/sample_campaigns.csv
 ```
 
 ## Notes
