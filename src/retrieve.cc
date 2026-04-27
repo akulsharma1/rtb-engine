@@ -1,4 +1,5 @@
 #include "rtb/retrieve.h"
+#include "logs/logs.h"
 
 namespace {
 
@@ -61,18 +62,21 @@ std::vector<CampaignView> retrieve_candidates(
 ) {
     std::vector<CampaignView> candidates;
     if (!request_context.is_eligible()) {
+        rtb::logger::LOG("Retrieve Candidates: context is not eligible");
         return candidates;
     }
 
     // initial filtering return the smaller of country index and ad slot
     const auto* seed_bucket = choose_seed_bucket(campaign_store, request_context);
     if (seed_bucket == nullptr) {
+        rtb::logger::LOG("Retrieve Candidates: seed bucket is null");
         return candidates;
     }
 
     // HFT note: this per-request vector allocation is acceptable for v1 correctness,
     // but a worker-local scratch vector or fixed-capacity small buffer would reduce churn.
     candidates.reserve(seed_bucket->size());
+    rtb::logger::LOG("Retrieve Candidates: seed bucket size: %zu", seed_bucket->size());
 
     for (const std::uint32_t campaign_index : *seed_bucket) {
         if (campaign_index >= campaign_store.campaigns.size()) {

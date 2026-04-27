@@ -19,8 +19,10 @@ add_library(rtb_engine_core STATIC
     handle_request.cc
     normalize.cc
     parse.cc
+    response_framing.cc
     retrieve.cc
     response_builder.cc
+    server.cc
     worker_runtime.cc
 )
 

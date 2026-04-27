@@ -2,7 +2,6 @@
 #include "rtb/config.h"
 #include "rtb/constants.h"
 
-#include <algorithm>
 #include <cctype>
 #include <string_view>
 

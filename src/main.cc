@@ -1,45 +1,39 @@
 #include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
 
-#include "rtb/engine_types.h"
+#include "rtb/server.h"
 #include "rtb.pb.h"
 
-int main() {
+int main(int argc, char* argv[]) {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-    rtb::engine::ParsedMessage parsed_message {
-        .request_id = "bootstrap-request",
-        .tmax_ms = 120,
-        .country = "US",
-        .device_type = "desktop",
-        .ad_slot = "homepage-top",
-        .auction_type = rtb::engine::AuctionType::kFirstPrice,
-    };
+    std::vector<std::string_view> args;
+    args.reserve(static_cast<std::size_t>(argc > 1 ? argc - 1 : 0));
+    for (int index = 1; index < argc; ++index) {
+        args.emplace_back(argv[index]);
+    }
 
+    rtb::engine::ServerConfig config;
+    std::string error;
+    const rtb::engine::ParseServerConfigStatus parse_status =
+        rtb::engine::parse_server_config(args, config, error);
 
-    rtb::engine::RequestContext request_context {
-        .request_id = parsed_message.request_id,
-        .country_key = {1},
-        .device_type_key = rtb::engine::DeviceTypeKey::kDesktop,
-        .ad_slot_key = {1001},
-        .auction_type = parsed_message.auction_type,
-        .received_at_ns = 1'000,
-        .deadline_ns = 111'000,
-    };
+    if (parse_status == rtb::engine::ParseServerConfigStatus::kHelpRequested) {
+        rtb::engine::print_server_usage(std::cout, argv[0]);
+        google::protobuf::ShutdownProtobufLibrary();
+        return 0;
+    }
 
-    rtb::v1::BidRequest request;
-    request.set_request_id(parsed_message.request_id.data());
-    request.set_tmax_ms(parsed_message.tmax_ms);
-    request.set_country(parsed_message.country.data());
-    request.set_device_type(parsed_message.device_type.data());
-    request.set_ad_slot(parsed_message.ad_slot.data());
-    request.set_auction_type(rtb::v1::AUCTION_TYPE_FIRST_PRICE);
+    if (parse_status == rtb::engine::ParseServerConfigStatus::kInvalidArgument) {
+        std::cerr << "Error: " << error << '\n';
+        rtb::engine::print_server_usage(std::cerr, argv[0]);
+        google::protobuf::ShutdownProtobufLibrary();
+        return 1;
+    }
 
-    std::cout << "rtb_engine bootstrap ready for request "
-              << request.request_id()
-              << " with deadline "
-              << request_context.deadline_ns
-              << '\n';
-
+    const int exit_code = rtb::engine::run_server(config);
     google::protobuf::ShutdownProtobufLibrary();
-    return 0;
+    return exit_code;
 }

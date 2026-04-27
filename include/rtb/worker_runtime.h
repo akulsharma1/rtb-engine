@@ -23,6 +23,7 @@ struct WorkerConfig {
     int epoll_max_events = 256;
     std::size_t connection_buffer_capacity = 16 * 1024;
     std::uint32_t max_frame_size = 64 * 1024;
+    int shutdown_fd = -1;
     std::string campaign_data_path = RTB_PROJECT_SOURCE_DIR "/data/sample_campaigns.csv";
 };
 

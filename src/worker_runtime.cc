@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
@@ -17,6 +18,7 @@
 #include "rtb/handle_request.h"
 #include "rtb/engine_types.h"
 #include "rtb/parse.h"
+#include "rtb/response_framing.h"
 #include "rtb/runtime_types.h"
 
 namespace {
@@ -37,6 +39,106 @@ void close_connection(rtb::engine::WorkerRuntime& runtime, int client_fd) {
     epoll_ctl(runtime.epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
     close(client_fd);
     runtime.connections.erase(client_fd);
+}
+
+bool update_client_events(rtb::engine::WorkerRuntime& runtime, int client_fd, bool enable_write) {
+    epoll_event event {};
+    const std::uint32_t write_event = enable_write ? static_cast<std::uint32_t>(EPOLLOUT) : 0U;
+    event.events = static_cast<std::uint32_t>(EPOLLIN | EPOLLRDHUP) | write_event;
+    event.data.fd = client_fd;
+    return epoll_ctl(runtime.epoll_fd, EPOLL_CTL_MOD, client_fd, &event) != -1;
+}
+
+bool flush_pending_write(rtb::engine::WorkerRuntime& runtime, rtb::engine::ConnectionState& connection) {
+    while (connection.write_buffer.readable_bytes() > 0) {
+        const auto readable = std::span<const std::byte>(
+            connection.write_buffer.storage.data() + connection.write_buffer.read_offset,
+            connection.write_buffer.readable_bytes()
+        );
+
+        const ssize_t bytes_written = write(connection.fd, readable.data(), readable.size());
+        if (bytes_written > 0) {
+            connection.write_buffer.consume_frame(static_cast<std::size_t>(bytes_written));
+            continue;
+        }
+
+        if (bytes_written == 0) {
+            return false;
+        }
+
+        if (errno == EINTR) {
+            continue;
+        }
+
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            break;
+        }
+
+        return false;
+    }
+
+    connection.has_pending_write = connection.write_buffer.readable_bytes() != 0;
+    if (!update_client_events(runtime, connection.fd, connection.has_pending_write)) {
+        return false;
+    }
+
+    return true;
+}
+
+enum class ProcessFramesOutcome : std::uint8_t {
+    kContinue = 0,
+    kPauseForWrite,
+    kCloseConnection,
+};
+
+ProcessFramesOutcome process_ready_frames(
+    rtb::engine::WorkerRuntime& runtime,
+    rtb::engine::ConnectionState& connection
+) {
+    for (;;) {
+        rtb::engine::FrameView frame;
+        const rtb::engine::FrameStatus status =
+            connection.read_buffer.try_extract_frame(runtime.config.max_frame_size, frame);
+
+        if (status == rtb::engine::FrameStatus::kNeedMoreData) {
+            return ProcessFramesOutcome::kContinue;
+        }
+
+        if (status == rtb::engine::FrameStatus::kInvalidLength) {
+            return ProcessFramesOutcome::kCloseConnection;
+        }
+
+        rtb::engine::ParsedMessage parsed_message;
+        const rtb::engine::ParseStatus parse_status =
+            rtb::engine::parse_bid_request(frame.payload, runtime.parse_scratch, parsed_message);
+        if (parse_status != rtb::engine::ParseStatus::kOk) {
+            rtb::logger::LOG_ERROR(
+                "parse_bid_request failed for fd %d with status %d",
+                connection.fd,
+                static_cast<int>(parse_status)
+            );
+            return ProcessFramesOutcome::kCloseConnection;
+        }
+
+        const rtb::engine::HandleRequestResult request_result =
+            rtb::engine::handle_request(parsed_message, now_ns(), *runtime.campaign_store, runtime.rng);
+        if (request_result.status == rtb::engine::HandleRequestStatus::kDropConnection) {
+            return ProcessFramesOutcome::kCloseConnection;
+        }
+
+        if (!rtb::engine::stage_response_frame(request_result.response, connection.write_buffer)) {
+            rtb::logger::LOG_ERROR("Failed staging response for fd %d", connection.fd);
+            return ProcessFramesOutcome::kCloseConnection;
+        }
+
+        connection.read_buffer.consume_frame(frame.total_frame_bytes);
+        connection.has_pending_write = true;
+        if (!update_client_events(runtime, connection.fd, true)) {
+            return ProcessFramesOutcome::kCloseConnection;
+        }
+
+        return ProcessFramesOutcome::kPauseForWrite;
+    }
 }
 
 }  // namespace
@@ -116,6 +218,18 @@ bool initialize_worker_runtime(WorkerRuntime& runtime) {
         return false;
     }
 
+    if (runtime.config.shutdown_fd >= 0) {
+        epoll_event shutdown_event {};
+        shutdown_event.events = EPOLLIN;
+        shutdown_event.data.fd = runtime.config.shutdown_fd;
+
+        if (epoll_ctl(runtime.epoll_fd, EPOLL_CTL_ADD, runtime.config.shutdown_fd, &shutdown_event) == -1) {
+            rtb::logger::LOG_ERROR("%s", "Error registering shutdown fd with epoll");
+            shutdown_worker_runtime(runtime);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -152,6 +266,10 @@ int run_worker_loop(WorkerRuntime& runtime) {
         }
 
         for (int i = 0; i < nfds; i++) {
+            if (events[i].data.fd == runtime.config.shutdown_fd) {
+                return 0;
+            }
+
             if (events[i].data.fd == runtime.listen_fd) {
                 for (;;) {
                     const int client_fd = accept4(runtime.listen_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
@@ -174,6 +292,7 @@ int run_worker_loop(WorkerRuntime& runtime) {
                     Thereforee, TODO: create a buffer pool allocator
                     */
                     connection.read_buffer.reserve(runtime.config.connection_buffer_capacity);
+                    connection.write_buffer.reserve(runtime.config.connection_buffer_capacity);
 
                     runtime.connections.emplace(client_fd, std::move(connection));
 
@@ -205,6 +324,26 @@ int run_worker_loop(WorkerRuntime& runtime) {
 
                 ConnectionState& connection = it->second;
 
+                if (connection.has_pending_write) {
+                    if ((events[i].events & EPOLLOUT) != 0 && !flush_pending_write(runtime, connection)) {
+                        close_connection(runtime, client_fd);
+                        continue;
+                    }
+
+                    if (connection.has_pending_write) {
+                        continue;
+                    }
+                }
+
+                const ProcessFramesOutcome buffered_frame_outcome = process_ready_frames(runtime, connection);
+                if (buffered_frame_outcome == ProcessFramesOutcome::kCloseConnection) {
+                    close_connection(runtime, client_fd);
+                    continue;
+                }
+                if (buffered_frame_outcome == ProcessFramesOutcome::kPauseForWrite) {
+                    continue;
+                }
+
                 bool should_close = false;
                 for (;;) {
                     auto writable = connection.read_buffer.writable_region();
@@ -229,39 +368,15 @@ int run_worker_loop(WorkerRuntime& runtime) {
                     if (bytes_read > 0) {
                         connection.read_buffer.commit_write(static_cast<size_t>(bytes_read));
 
-                        for (;;) {
-                            FrameView frame;
-                            const FrameStatus status = connection.read_buffer.try_extract_frame(runtime.config.max_frame_size, frame);
-
-                            if (status == FrameStatus::kNeedMoreData) {
-                                break;
-                            }
-
-                            if (status == FrameStatus::kInvalidLength) {
-                                should_close = true;
-                                break;
-                            }
-
-                            ParsedMessage parsed_message;
-                            const ParseStatus parse_status =
-                                parse_bid_request(frame.payload, runtime.parse_scratch, parsed_message);
-                            if (parse_status != ParseStatus::kOk) {
-                                logger::LOG_ERROR("parse_bid_request failed for fd %d with status %d",
-                                                  client_fd,
-                                                  static_cast<int>(parse_status));
-                                should_close = true;
-                                break;
-                            }
-
-                            const HandleRequestResult request_result =
-                                handle_request(parsed_message, now_ns(), *runtime.campaign_store, runtime.rng);
-                            if (request_result.status == HandleRequestStatus::kDropConnection) {
-                                should_close = true;
-                                break;
-                            }
-
-                            connection.read_buffer.consume_frame(frame.total_frame_bytes);
+                        const ProcessFramesOutcome process_outcome = process_ready_frames(runtime, connection);
+                        if (process_outcome == ProcessFramesOutcome::kCloseConnection) {
+                            should_close = true;
+                            break;
                         }
+                        if (process_outcome == ProcessFramesOutcome::kPauseForWrite) {
+                            break;
+                        }
+
                         if (should_close) {
                             break;
                         }

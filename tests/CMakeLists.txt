@@ -48,6 +48,16 @@ target_link_libraries(
 
 add_test(NAME response_builder_test COMMAND response_builder_test)
 
+add_executable(response_framing_test response_framing_test.cc)
+
+target_link_libraries(
+    response_framing_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME response_framing_test COMMAND response_framing_test)
+
 add_executable(handle_request_test handle_request_test.cc)
 
 target_link_libraries(
@@ -87,3 +97,13 @@ target_link_libraries(
 )
 
 add_test(NAME retrieve_test COMMAND retrieve_test)
+
+add_executable(server_test server_test.cc)
+
+target_link_libraries(
+    server_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME server_test COMMAND server_test)

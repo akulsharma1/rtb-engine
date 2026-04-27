@@ -4,22 +4,32 @@
 #include <cstdio>
 #include <utility>
 
-namespace rtb::logger {
+#include "rtb/config.h"
 
-inline constexpr bool kEnableLogs = false;
+namespace rtb::logger {
 
 template <typename... Args>
 inline void LOG(const char* format, Args&&... args) {
-    if constexpr (kEnableLogs) {
-        std::fprintf(stdout, format, std::forward<Args>(args)...);
+    if constexpr (rtb::config::kEnableLogs) {
+        if constexpr (sizeof...(Args) == 0) {
+            std::fputs(format, stdout);
+        } else {
+            std::fprintf(stdout, format, std::forward<Args>(args)...);
+        }
         std::fputc('\n', stdout);
+        std::fflush(stdout);
     }
 }
 
 template <typename... Args>
 inline void LOG_ERROR(const char* format, Args&&... args) {
-    std::fprintf(stderr, format, std::forward<Args>(args)...);
+    if constexpr (sizeof...(Args) == 0) {
+        std::fputs(format, stderr);
+    } else {
+        std::fprintf(stderr, format, std::forward<Args>(args)...);
+    }
     std::fputc('\n', stderr);
+    std::fflush(stderr);
 }
 
 }  // namespace rtb::logger

@@ -88,6 +88,7 @@ struct ConnectionState {
     std::uint64_t request_sequence = 0;
     ReusableBuffer read_buffer;
     ReusableBuffer write_buffer;
+    bool has_pending_write = false;
 };
 
 }  // namespace rtb::engine

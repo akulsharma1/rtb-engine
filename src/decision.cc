@@ -2,6 +2,7 @@
 
 #include <limits>
 
+#include "logs/logs.h"
 #include "rtb/config.h"
 
 namespace {
@@ -33,6 +34,10 @@ BidDecision make_bid_decision(
     WorkerRng& rng
 ) {
     if (!request_context.is_eligible()) {
+        rtb::logger::LOG_ERROR(
+            "Make Bid Decision: setting no bid reason to %u",
+            static_cast<unsigned>(request_context.no_bid_reason)
+        );
         return BidDecision {
             .has_bid = false,
             .no_bid_reason = request_context.no_bid_reason,
@@ -40,6 +45,7 @@ BidDecision make_bid_decision(
     }
 
     if (candidates.empty()) {
+        rtb::logger::LOG("Make Bid Decision: setting no bid reason no eligible campaign");
         return BidDecision {
             .has_bid = false,
             .no_bid_reason = NoBidReason::kNoEligibleCampaign,
