@@ -25,3 +25,4 @@ build/
 .venv
 .venv-ssp
 tools/generated
+tools/__pycache__

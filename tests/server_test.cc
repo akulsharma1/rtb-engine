@@ -27,12 +27,20 @@ int main() {
         const std::vector<std::string_view> args {
             "--port", "9090",
             "--workers", "3",
+            "--benchmark",
+            "--benchmark-json", "/tmp/engine-benchmark.json",
+            "--benchmark-requests", "100",
+            "--benchmark-duration-ms", "5000",
             "--campaign-data-path", "/tmp/campaigns.csv",
         };
         const auto status = parse_server_config(args, config, error);
         if (status != ParseServerConfigStatus::kOk ||
             config.port != 9090 ||
             config.workers != 3 ||
+            !config.benchmark ||
+            config.benchmark_json_path != "/tmp/engine-benchmark.json" ||
+            config.benchmark_requests != 100 ||
+            config.benchmark_duration_ms != 5000 ||
             config.campaign_data_path != "/tmp/campaigns.csv") {
             return 1;
         }
@@ -77,6 +85,17 @@ int main() {
         const auto status = parse_server_config(args, config, error);
         if (status != ParseServerConfigStatus::kInvalidArgument ||
             error != "unknown argument: --bogus") {
+            return 1;
+        }
+    }
+
+    {
+        ServerConfig config;
+        std::string error;
+        const std::vector<std::string_view> args {"--benchmark-requests", "0"};
+        const auto status = parse_server_config(args, config, error);
+        if (status != ParseServerConfigStatus::kInvalidArgument ||
+            error != "invalid value for --benchmark-requests") {
             return 1;
         }
     }

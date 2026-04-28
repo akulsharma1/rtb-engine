@@ -13,6 +13,7 @@ target_link_libraries(
 )
 
 add_library(rtb_engine_core STATIC
+    benchmark.cc
     campaign_store.cc
     decision.cc
     frame.cc

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 
+#include "rtb/benchmark.h"
 #include "rtb/engine_types.h"
 #include "rtb/runtime_types.h"
 #include "rtb.pb.h"
@@ -25,7 +26,8 @@ HandleRequestResult handle_request(
     const ParsedMessage& parsed_message,
     std::uint64_t received_at_ns,
     const CampaignStoreSnapshot& campaign_store,
-    WorkerRng& rng
+    WorkerRng& rng,
+    HandleRequestTimingBreakdown* timing = nullptr
 );
 
 }  // namespace rtb::engine

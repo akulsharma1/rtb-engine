@@ -12,6 +12,10 @@ namespace rtb::engine {
 struct ServerConfig {
     std::uint16_t port = 8080;
     int workers = 1;
+    bool benchmark = false;
+    std::uint64_t benchmark_requests = 0;
+    std::uint64_t benchmark_duration_ms = 0;
+    std::string benchmark_json_path;
     std::string campaign_data_path;
 };
 

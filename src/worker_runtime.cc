@@ -41,6 +41,16 @@ void close_connection(rtb::engine::WorkerRuntime& runtime, int client_fd) {
     runtime.connections.erase(client_fd);
 }
 
+void signal_shutdown_fd(int shutdown_fd) {
+    if (shutdown_fd < 0) {
+        return;
+    }
+
+    const std::uint64_t wake_value = 1;
+    const ssize_t ignored_result = write(shutdown_fd, &wake_value, sizeof(wake_value));
+    (void)ignored_result;
+}
+
 bool update_client_events(rtb::engine::WorkerRuntime& runtime, int client_fd, bool enable_write) {
     epoll_event event {};
     const std::uint32_t write_event = enable_write ? static_cast<std::uint32_t>(EPOLLOUT) : 0U;
@@ -82,6 +92,12 @@ bool flush_pending_write(rtb::engine::WorkerRuntime& runtime, rtb::engine::Conne
         return false;
     }
 
+    if (!connection.has_pending_write &&
+        runtime.benchmark_recorder != nullptr &&
+        runtime.benchmark_recorder->request_limit_reached()) {
+        signal_shutdown_fd(runtime.config.shutdown_fd);
+    }
+
     return true;
 }
 
@@ -108,9 +124,14 @@ ProcessFramesOutcome process_ready_frames(
             return ProcessFramesOutcome::kCloseConnection;
         }
 
+        const std::uint64_t total_start = now_ns();
         rtb::engine::ParsedMessage parsed_message;
+        rtb::engine::RequestTimingBreakdown timing;
+        const std::uint64_t parse_start = now_ns();
         const rtb::engine::ParseStatus parse_status =
             rtb::engine::parse_bid_request(frame.payload, runtime.parse_scratch, parsed_message);
+        const std::uint64_t parse_end = now_ns();
+        timing.parse_ns = parse_end - parse_start;
         if (parse_status != rtb::engine::ParseStatus::kOk) {
             rtb::logger::LOG_ERROR(
                 "parse_bid_request failed for fd %d with status %d",
@@ -120,15 +141,28 @@ ProcessFramesOutcome process_ready_frames(
             return ProcessFramesOutcome::kCloseConnection;
         }
 
+        rtb::engine::HandleRequestTimingBreakdown handle_timing;
         const rtb::engine::HandleRequestResult request_result =
-            rtb::engine::handle_request(parsed_message, now_ns(), *runtime.campaign_store, runtime.rng);
+            rtb::engine::handle_request(parsed_message, now_ns(), *runtime.campaign_store, runtime.rng, &handle_timing);
+        timing.normalize_validate_ns = handle_timing.normalize_validate_ns;
+        timing.retrieve_ns = handle_timing.retrieve_ns;
+        timing.decide_ns = handle_timing.decide_ns;
+        timing.response_build_ns = handle_timing.response_build_ns;
         if (request_result.status == rtb::engine::HandleRequestStatus::kDropConnection) {
             return ProcessFramesOutcome::kCloseConnection;
         }
 
+        const std::uint64_t response_stage_start = now_ns();
         if (!rtb::engine::stage_response_frame(request_result.response, connection.write_buffer)) {
             rtb::logger::LOG_ERROR("Failed staging response for fd %d", connection.fd);
             return ProcessFramesOutcome::kCloseConnection;
+        }
+        const std::uint64_t response_stage_end = now_ns();
+        timing.response_stage_ns = response_stage_end - response_stage_start;
+        timing.total_internal_ns = response_stage_end - total_start;
+
+        if (runtime.benchmark_recorder != nullptr) {
+            runtime.benchmark_recorder->record_request(timing);
         }
 
         connection.read_buffer.consume_frame(frame.total_frame_bytes);

@@ -3,10 +3,13 @@
 #include <atomic>
 #include <charconv>
 #include <csignal>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <mutex>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
@@ -15,6 +18,7 @@
 #include <unistd.h>
 
 #include "logs/logs.h"
+#include "rtb/benchmark.h"
 #include "rtb/campaign_store.h"
 #include "rtb/worker_runtime.h"
 
@@ -45,6 +49,19 @@ extern "C" void handle_shutdown_signal(int) {
 
 bool parse_int_arg(std::string_view text, int& out) {
     int value = 0;
+    const auto* begin = text.data();
+    const auto* end = text.data() + text.size();
+    const auto result = std::from_chars(begin, end, value);
+    if (result.ec != std::errc {} || result.ptr != end) {
+        return false;
+    }
+
+    out = value;
+    return true;
+}
+
+bool parse_u64_arg(std::string_view text, std::uint64_t& out) {
+    std::uint64_t value = 0;
     const auto* begin = text.data();
     const auto* end = text.data() + text.size();
     const auto result = std::from_chars(begin, end, value);
@@ -138,6 +155,11 @@ ParseServerConfigStatus parse_server_config(
             return ParseServerConfigStatus::kHelpRequested;
         }
 
+        if (arg == "--benchmark") {
+            out.benchmark = true;
+            continue;
+        }
+
         if (arg == "--port") {
             if (index + 1 >= args.size()) {
                 error = "missing value for --port";
@@ -174,6 +196,45 @@ ParseServerConfigStatus parse_server_config(
             continue;
         }
 
+        if (arg == "--benchmark-json") {
+            if (index + 1 >= args.size()) {
+                error = "missing value for --benchmark-json";
+                return ParseServerConfigStatus::kInvalidArgument;
+            }
+
+            out.benchmark = true;
+            out.benchmark_json_path = std::string(args[++index]);
+            continue;
+        }
+
+        if (arg == "--benchmark-requests") {
+            if (index + 1 >= args.size()) {
+                error = "missing value for --benchmark-requests";
+                return ParseServerConfigStatus::kInvalidArgument;
+            }
+
+            if (!parse_u64_arg(args[++index], out.benchmark_requests) || out.benchmark_requests == 0) {
+                error = "invalid value for --benchmark-requests";
+                return ParseServerConfigStatus::kInvalidArgument;
+            }
+            out.benchmark = true;
+            continue;
+        }
+
+        if (arg == "--benchmark-duration-ms") {
+            if (index + 1 >= args.size()) {
+                error = "missing value for --benchmark-duration-ms";
+                return ParseServerConfigStatus::kInvalidArgument;
+            }
+
+            if (!parse_u64_arg(args[++index], out.benchmark_duration_ms) || out.benchmark_duration_ms == 0) {
+                error = "invalid value for --benchmark-duration-ms";
+                return ParseServerConfigStatus::kInvalidArgument;
+            }
+            out.benchmark = true;
+            continue;
+        }
+
         error = "unknown argument: " + std::string(arg);
         return ParseServerConfigStatus::kInvalidArgument;
     }
@@ -183,13 +244,11 @@ ParseServerConfigStatus parse_server_config(
 
 void print_server_usage(std::ostream& os, std::string_view program_name) {
     os << "Usage: " << program_name << " [--port PORT] [--workers COUNT] "
-       << "[--campaign-data-path PATH]\n";
+       << "[--campaign-data-path PATH] [--benchmark] [--benchmark-json PATH] "
+       << "[--benchmark-requests COUNT] [--benchmark-duration-ms MS]\n";
 }
 
 int run_server(const ServerConfig& config) {
-    rtb::logger::LOG("Starting server");
-    rtb::logger::LOG("Testing on stderr");
-    
     if (config.port == 0) {
         rtb::logger::LOG_ERROR("%s", "Server port must be non-zero");
         return 1;
@@ -225,6 +284,9 @@ int run_server(const ServerConfig& config) {
 
     g_shutdown_requested = 0;
 
+    const std::shared_ptr<BenchmarkRecorder> benchmark_recorder =
+        config.benchmark ? std::make_shared<BenchmarkRecorder>(config.benchmark_requests) : nullptr;
+
     std::vector<std::unique_ptr<WorkerRuntime>> runtimes;
     runtimes.reserve(static_cast<std::size_t>(config.workers));
 
@@ -234,6 +296,7 @@ int run_server(const ServerConfig& config) {
         runtime->config.port = config.port;
         runtime->config.shutdown_fd = shutdown_event_fd;
         runtime->config.campaign_data_path = config.campaign_data_path;
+        runtime->benchmark_recorder = benchmark_recorder;
         runtime->campaign_store = campaign_store;
 
         if (!initialize_worker_runtime(*runtime)) {
@@ -257,6 +320,32 @@ int run_server(const ServerConfig& config) {
     std::atomic<int> exit_code {0};
     std::vector<std::thread> worker_threads;
     worker_threads.reserve(static_cast<std::size_t>(config.workers));
+    std::thread benchmark_timer_thread;
+    std::mutex benchmark_timer_mutex;
+    std::condition_variable benchmark_timer_cv;
+    bool benchmark_timer_cancelled = false;
+
+    if (config.benchmark && config.benchmark_duration_ms != 0) {
+        benchmark_timer_thread = std::thread([
+            shutdown_event_fd,
+            duration_ms = config.benchmark_duration_ms,
+            &benchmark_timer_mutex,
+            &benchmark_timer_cv,
+            &benchmark_timer_cancelled
+        ]() {
+            std::unique_lock<std::mutex> lock(benchmark_timer_mutex);
+            const bool cancelled = benchmark_timer_cv.wait_for(
+                lock,
+                std::chrono::milliseconds(duration_ms),
+                [&benchmark_timer_cancelled]() { return benchmark_timer_cancelled; }
+            );
+            lock.unlock();
+
+            if (!cancelled) {
+                request_shutdown(shutdown_event_fd);
+            }
+        });
+    }
 
     for (auto& runtime : runtimes) {
         worker_threads.emplace_back([&exit_code, shutdown_event_fd, runtime = runtime.get()]() {
@@ -275,8 +364,40 @@ int run_server(const ServerConfig& config) {
         }
     }
 
+    if (benchmark_timer_thread.joinable()) {
+        {
+            std::lock_guard<std::mutex> lock(benchmark_timer_mutex);
+            benchmark_timer_cancelled = true;
+        }
+        benchmark_timer_cv.notify_all();
+        benchmark_timer_thread.join();
+    }
+
     for (auto& runtime : runtimes) {
         shutdown_worker_runtime(*runtime);
+    }
+
+    if (benchmark_recorder != nullptr) {
+        benchmark_recorder->print_summary(std::cout);
+
+        if (!config.benchmark_json_path.empty()) {
+            const BenchmarkMetadata metadata {
+                .timestamp_utc = {},
+                .port = config.port,
+                .workers = config.workers,
+                .request_limit = config.benchmark_requests,
+                .duration_ms = config.benchmark_duration_ms,
+                .completed_requests = benchmark_recorder->completed_requests(),
+                .campaign_data_path = config.campaign_data_path,
+            };
+
+            if (!benchmark_recorder->write_json(config.benchmark_json_path, metadata)) {
+                rtb::logger::LOG_ERROR(
+                    "Failed writing benchmark JSON to %s",
+                    config.benchmark_json_path.c_str()
+                );
+            }
+        }
     }
 
     g_shutdown_event_fd = -1;

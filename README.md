@@ -85,6 +85,23 @@ Run the engine in one shell, then run the simulator in another:
 python3 tools/ssp_sim.py --port 8080 --count 10 --seed 12345
 ```
 
+For RTT benchmarking from the Python SSP:
+
+```bash
+./build/src/rtb_engine --port 8080 --workers 1 --benchmark --benchmark-json /tmp/engine-benchmark.json
+./.venv-ssp/bin/python tools/ssp_sim.py --host 127.0.0.1 --port 8080 --benchmark --warmup 100 --count 1000 --seed 12345 --json-out /tmp/ssp-benchmark.json
+```
+
+That gives you:
+- client-observed RTT percentiles from the SSP
+- engine-internal phase timings through response staging from the server
+
+An internal in-process microbenchmark is also available:
+
+```bash
+./build/bench/rtb_inproc_bench --warmup 1000 --count 10000 --seed 12345
+```
+
 The SSP dependencies install into a repo-local virtualenv at `.venv-ssp`, so they do not touch the container's system Python.
 
 If your current container was created before Python tooling was added and `python3 -m venv` is missing, rebuild/re-enter it from the host:

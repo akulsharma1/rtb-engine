@@ -8,6 +8,16 @@ target_link_libraries(
 
 add_test(NAME engine_types_smoke_test COMMAND engine_types_smoke_test)
 
+add_executable(benchmark_test benchmark_test.cc)
+
+target_link_libraries(
+    benchmark_test
+    PRIVATE
+        rtb_engine_core
+)
+
+add_test(NAME benchmark_test COMMAND benchmark_test)
+
 add_executable(parse_test parse_test.cc)
 
 target_link_libraries(
@@ -107,3 +117,8 @@ target_link_libraries(
 )
 
 add_test(NAME server_test COMMAND server_test)
+
+add_test(
+    NAME ssp_sim_benchmark_test
+    COMMAND python3 ${PROJECT_SOURCE_DIR}/tests/ssp_sim_benchmark_test.py
+)

@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "rtb/benchmark.h"
 #include "rtb/engine_types.h"
 #include "rtb/parse.h"
 #include "rtb/runtime_types.h"
@@ -34,6 +35,7 @@ struct WorkerRuntime {
     std::uint64_t next_connection_id = 1;
     ParseScratch parse_scratch;
     WorkerRng rng;
+    std::shared_ptr<BenchmarkRecorder> benchmark_recorder;
     std::shared_ptr<const CampaignStoreSnapshot> campaign_store;
     std::unordered_map<int, ConnectionState> connections;
 };
