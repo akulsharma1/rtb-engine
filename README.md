@@ -187,27 +187,27 @@ Run the engine on a different port:
 
 ## Important Files
 
-- [`include/rtb/config.h`](/Users/akulsharma/Documents/projects/rtb-engine/include/rtb/config.h)
+- [`include/rtb/config.h`](./include/rtb/config.h)
   - shared runtime and benchmark configuration constants
   - includes things like log enablement, bid range, and timing-related defaults
 
-- [`src/main.cc`](/Users/akulsharma/Documents/projects/rtb-engine/src/main.cc)
+- [`src/main.cc`](./src/main.cc)
   - binary entrypoint
   - parses CLI args, initializes protobuf, and starts the server bootstrap
 
-- [`src/server.cc`](/Users/akulsharma/Documents/projects/rtb-engine/src/server.cc)
+- [`src/server.cc`](./src/server.cc)
   - server bootstrap and process-level orchestration
   - handles worker startup, signal/shutdown handling, and benchmark-mode setup/output
 
-- [`src/worker_runtime.cc`](/Users/akulsharma/Documents/projects/rtb-engine/src/worker_runtime.cc)
+- [`src/worker_runtime.cc`](./src/worker_runtime.cc)
   - core runtime loop
   - owns the `epoll` flow, connection lifecycle, request parsing, response staging, and internal request timing capture
 
-- [`src/handle_request.cc`](/Users/akulsharma/Documents/projects/rtb-engine/src/handle_request.cc)
+- [`src/handle_request.cc`](./src/handle_request.cc)
   - synchronous request pipeline after protobuf parse
   - builds `RequestContext`, validates it, retrieves candidates, decides, and builds the `BidResponse`
 
-- [`tools/ssp_sim.py`](/Users/akulsharma/Documents/projects/rtb-engine/tools/ssp_sim.py)
+- [`tools/ssp_sim.py`](./tools/ssp_sim.py)
   - Python SSP client and RTT benchmark driver
   - useful for both normal end-to-end testing and client-observed latency benchmarking
 
